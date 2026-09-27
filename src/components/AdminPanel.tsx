@@ -1,36 +1,41 @@
 import React, { useState } from 'react';
-import { ShieldLock, Film, Link as LinkIcon, ArrowLeft, Star, Tv, Plus, Layers } from 'lucide-react';
+import { ShieldLock, Film, Link as LinkIcon, ArrowLeft, Star, Tv, Plus, Layers, Trash2 } from 'lucide-react';
 import type { MovieItem, EpisodeItem } from '../types';
 
 interface AdminPanelProps {
   movies: MovieItem[];
   onAddMovie: (movie: MovieItem) => void;
   onUpdateMovie: (movie: MovieItem) => void;
+  onDeleteMovie?: (movieId: string) => void;
   onClose: () => void;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUpdateMovie, onClose }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ 
+  movies, 
+  onAddMovie, 
+  onUpdateMovie, 
+  onDeleteMovie,
+  onClose 
+}) => {
   const [password, setPassword] = useState('');
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [error, setError] = useState('');
 
-  // Rejim: 'add_movie' (Kino/Serial yaratish) yoki 'manage_episodes' (Serial qismlarini boshqarish)
-  const [activeTab, setActiveTab] = useState<'add_movie' | 'manage_episodes'>('add_movie');
+  const [activeTab, setActiveTab] = useState<'add_movie' | 'manage_episodes' | 'delete_media'>('add_movie');
 
-  // Yangi Kino / Serial Form state'lari
+  // Form State
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<'Kino' | 'Serial' | 'Multfilm' | 'Anime'>('Serial');
   const [posterUrl, setPosterUrl] = useState('');
   const [rating, setRating] = useState('8.5');
-  const [fileId, setFileId] = useState(''); // Yagona kino bo'lsa
+  const [fileId, setFileId] = useState('');
 
-  // Serial qismini qo'shish uchun
+  // Serial qismi State
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
   const [episodeNum, setEpisodeNum] = useState<number>(1);
   const [episodeTitle, setEpisodeTitle] = useState('');
   const [episodeFileId, setEpisodeFileId] = useState('');
 
-  // Eng oxirgi kodni aniqlash (1000 dan boshlanadi)
   const getNextCode = (): number => {
     let maxCode = 999;
     movies.forEach((m) => {
@@ -52,7 +57,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
     }
   };
 
-  // Yangi Kino yoki Serial Yaratish
   const handleCreateMedia = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return alert('Nomi kiritilishi shart!');
@@ -74,7 +78,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
     };
 
     onAddMovie(newMovie);
-    alert(`${category} muvaffaqiyatli yaratildi! Kodingiz: ${nextCode}`);
+    alert(`${category} muvaffaqiyatli yaratildi! Kod: ${nextCode}`);
 
     setTitle('');
     setPosterUrl('');
@@ -85,7 +89,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
     }
   };
 
-  // Serialga Yangi Qism Qo'shish
   const handleAddEpisode = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSerialId) return alert('Serialni tanlang!');
@@ -115,11 +118,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
     setEpisodeTitle('');
   };
 
+  const handleDeleteMedia = (id: string, title: string) => {
+    if (window.confirm(`Rostdan ham "${title}"ni o'chirmoqchimisiz?`)) {
+      if (onDeleteMovie) {
+        onDeleteMovie(id);
+      } else {
+        alert("O'chirish funksiyasi App.tsx da bog'lanmagan!");
+      }
+    }
+  };
+
+  const handleDeleteEpisode = (serialId: string, episodeId: string) => {
+    const targetSerial = movies.find((m) => m.id === serialId);
+    if (!targetSerial || !targetSerial.episodes) return;
+
+    if (window.confirm("Ushbu qismni o'chirmoqchimisiz?")) {
+      const updatedEpisodes = targetSerial.episodes.filter((e) => e.id !== episodeId);
+      onUpdateMovie({ ...targetSerial, episodes: updatedEpisodes });
+    }
+  };
+
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-[#0d1222] text-white p-4 max-w-md mx-auto flex items-center justify-center">
         <div className="bg-[#161f38] border border-slate-800 rounded-3xl p-6 shadow-2xl w-full">
-          <button onClick={onClose} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 text-sm">
+          <button onClick={onClose} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 text-sm transition">
             <ArrowLeft className="w-4 h-4" /> Bosh sahifaga
           </button>
           <div className="flex items-center gap-3 mb-6">
@@ -155,35 +178,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
 
   return (
     <div className="min-h-screen bg-[#0d1222] text-white p-4 max-w-md mx-auto pb-20">
-      <button onClick={onClose} className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 text-sm">
+      <button onClick={onClose} className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 text-sm transition">
         <ArrowLeft className="w-4 h-4" /> Bosh sahifaga qaytish
       </button>
 
-      {/* Tab Navigatsiya */}
-      <div className="grid grid-cols-2 gap-2 bg-[#161f38] p-1.5 rounded-2xl mb-4 border border-slate-800">
+      {/* Navigation Tabs */}
+      <div className="grid grid-cols-3 gap-1 bg-[#161f38] p-1.5 rounded-2xl mb-4 border border-slate-800">
         <button
           onClick={() => setActiveTab('add_movie')}
-          className={`py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+          className={`py-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 ${
             activeTab === 'add_movie' ? 'bg-blue-600 text-white' : 'text-gray-400'
           }`}
         >
-          <Tv className="w-4 h-4" /> Yangi Serial / Kino
+          <Tv className="w-3.5 h-3.5" /> Qo'shish
         </button>
         <button
           onClick={() => setActiveTab('manage_episodes')}
-          className={`py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+          className={`py-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 ${
             activeTab === 'manage_episodes' ? 'bg-blue-600 text-white' : 'text-gray-400'
           }`}
         >
-          <Layers className="w-4 h-4" /> Qismlarni Boshqarish
+          <Layers className="w-3.5 h-3.5" /> Qismlar
+        </button>
+        <button
+          onClick={() => setActiveTab('delete_media')}
+          className={`py-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 ${
+            activeTab === 'delete_media' ? 'bg-red-600 text-white' : 'text-gray-400'
+          }`}
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Boshqaruv
         </button>
       </div>
 
-      {activeTab === 'add_movie' ? (
+      {/* TAB 1: Qo'shish */}
+      {activeTab === 'add_movie' && (
         <div className="bg-[#161f38] border border-slate-800 rounded-2xl p-5 shadow-xl">
           <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
             <Film className="w-5 h-5 text-blue-400" />
-            <h1 className="text-base font-bold">Yangi Serial yoki Kino Qo'shish</h1>
+            <h1 className="text-base font-bold">Yangi Media Qo'shish</h1>
           </div>
 
           <form onSubmit={handleCreateMedia} className="space-y-4">
@@ -256,11 +288,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
             </button>
           </form>
         </div>
-      ) : (
+      )}
+
+      {/* TAB 2: Serial Qismlari */}
+      {activeTab === 'manage_episodes' && (
         <div className="bg-[#161f38] border border-slate-800 rounded-2xl p-5 shadow-xl">
           <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
             <Layers className="w-5 h-5 text-blue-400" />
-            <h1 className="text-base font-bold">Serial Qismlarini Qo'shish</h1>
+            <h1 className="text-base font-bold">Serial Qismlarini Boshqarish</h1>
           </div>
 
           <div className="mb-4">
@@ -327,7 +362,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
             </form>
           )}
 
-          {/* Mavjud Qismlar Ro'yxati */}
           {currentSelectedSerial && currentSelectedSerial.episodes && currentSelectedSerial.episodes.length > 0 && (
             <div className="mt-6 border-t border-slate-800 pt-4">
               <h3 className="text-xs font-bold text-gray-400 mb-3">Mavjud Qismlar:</h3>
@@ -342,10 +376,53 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ movies, onAddMovie, onUp
                       <span className="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded font-mono text-[10px]">
                         Kod: {ep.code}
                       </span>
+                      <button 
+                        onClick={() => handleDeleteEpisode(currentSelectedSerial.id, ep.id)}
+                        className="text-red-400 hover:text-red-300 p-1 rounded transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: Kinolarni / Seriallarni O'chirish Ro'yxati */}
+      {activeTab === 'delete_media' && (
+        <div className="bg-[#161f38] border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+            <Trash2 className="w-5 h-5 text-red-400" />
+            <h1 className="text-base font-bold">Mavjud Medialarni O'chirish</h1>
+          </div>
+
+          {movies.length === 0 ? (
+            <p className="text-xs text-gray-500 text-center py-4">Hech qanday media topilmadi.</p>
+          ) : (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {movies.map((m) => (
+                <div key={m.id} className="bg-[#0d1222] p-3 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 truncate">
+                    <img src={m.posterUrl} alt={m.title} className="w-10 h-12 object-cover rounded-lg shrink-0" />
+                    <div className="truncate">
+                      <h4 className="text-xs font-bold text-white truncate">{m.title}</h4>
+                      <span className="text-[10px] text-gray-400 bg-slate-800 px-1.5 py-0.5 rounded uppercase">
+                        {m.category}
+                      </span>
+                      {m.code && <span className="text-[10px] text-blue-400 font-mono ml-2">Kod: {m.code}</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteMedia(m.id, m.title)}
+                    className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

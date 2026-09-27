@@ -18,7 +18,7 @@ const generateRandomId = () => Math.floor(100000000 + Math.random() * 900000000)
 const normalizeSerialKey = (value: string): string =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-// JSON ichidan Kinolar va Seriallarni ajratib, Serial qismlarini guruhlash funksiyasi
+// JSON ichidan Kinolar va Seriallarni ajratib guruhlash
 const parseMoviesFromJson = (): MovieItem[] => {
   const moviesList: MovieItem[] = [];
   const serialsGroupMap: { [key: string]: MovieItem } = {};
@@ -38,7 +38,6 @@ const parseMoviesFromJson = (): MovieItem[] => {
     const code = Number(codeStr) || (1000 + index);
     const caption = movie.caption || '';
 
-    // Caption'dan Ma'lumotlarni qidirish
     const titleMatch = caption.match(/\*\*Kino nomi:\*\*\s*(.*)/) || caption.match(/(?:Kino nomi|Nomi):\s*<b>?([^<\n*]+)<?\/?b>?/i);
     const rawTitle = titleMatch ? titleMatch[1].split('\n')[0].replace(/\\n/g, '').replace(/<[^>]*>/g, '').trim() : `Kino #${code}`;
 
@@ -57,9 +56,7 @@ const parseMoviesFromJson = (): MovieItem[] => {
       const serialKey = normalizeSerialKey(serialName || `serial_${code}`);
       const episodeKey = `${serialKey}-${code}`;
 
-      if (seenEpisodeKeys.has(episodeKey)) {
-        return;
-      }
+      if (seenEpisodeKeys.has(episodeKey)) return;
       seenEpisodeKeys.add(episodeKey);
 
       let epNum = movie.episode_number;
@@ -104,9 +101,7 @@ const parseMoviesFromJson = (): MovieItem[] => {
     }
 
     const movieKey = `movie_${code}`;
-    if (seenMovieKeys.has(movieKey)) {
-      return;
-    }
+    if (seenMovieKeys.has(movieKey)) return;
     seenMovieKeys.add(movieKey);
 
     moviesList.push({
@@ -134,8 +129,6 @@ export default function App() {
 
   const [filterCategory, setFilterCategory] = useState<'all' | 'serial'>('all');
   const [selectedSerialForModal, setSelectedSerialForModal] = useState<MovieItem | null>(null);
-
-  // Eslatma modal oynasi holati (state)
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
 
   const [movies, setMovies] = useState<MovieItem[]>(() => {
@@ -143,7 +136,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : parseMoviesFromJson();
   });
 
-  // 1. Bulutli bazadan barcha qurilmalar uchun sinxronizatsiya
+  // Bulutli bazadan sinxronizatsiya
   useEffect(() => {
     fetchMoviesFromCloud().then((cloudMovies) => {
       if (cloudMovies && cloudMovies.length > 0) {
@@ -152,7 +145,7 @@ export default function App() {
     });
   }, []);
 
-  // 2. Kinolar o'zgarganda Bulutga va LocalStorage'ga saqlash
+  // Kinolar va Seriallar ro'yxatini yangilash hamda bulutga saqlash
   const updateMoviesData = useCallback((newMovies: MovieItem[]) => {
     setMovies(newMovies);
     localStorage.setItem('app_movies_list', JSON.stringify(newMovies));
@@ -160,14 +153,29 @@ export default function App() {
   }, []);
 
   const handleAddMovie = useCallback((newMovie: MovieItem) => {
-    const updated = [newMovie, ...movies];
-    updateMoviesData(updated);
-  }, [movies, updateMoviesData]);
+    setMovies((prev) => {
+      const updated = [newMovie, ...prev];
+      updateMoviesData(updated);
+      return updated;
+    });
+  }, [updateMoviesData]);
 
   const handleUpdateMovie = useCallback((updatedMovie: MovieItem) => {
-    const updated = movies.map((m) => (m.id === updatedMovie.id ? updatedMovie : m));
-    updateMoviesData(updated);
-  }, [movies, updateMoviesData]);
+    setMovies((prev) => {
+      const updated = prev.map((m) => (m.id === updatedMovie.id ? updatedMovie : m));
+      updateMoviesData(updated);
+      return updated;
+    });
+  }, [updateMoviesData]);
+
+  // Admin paneldan kino/serialni o'chirish funksiyasi
+  const handleDeleteMovie = useCallback((movieId: string) => {
+    setMovies((prev) => {
+      const updated = prev.filter((m) => m.id !== movieId);
+      updateMoviesData(updated);
+      return updated;
+    });
+  }, [updateMoviesData]);
 
   const [user] = useState<TelegramUser>(() => {
     const telegramUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
@@ -182,7 +190,7 @@ export default function App() {
       : { id: generateRandomId(), first_name: 'Foydalanuvchi' };
   });
 
-  // Domen yoniga /admin deb yozilganda admin paneli ochilishi
+  // URL /admin bo'lganda Admin panelni ochish
   useEffect(() => {
     const checkPath = () => {
       if (window.location.pathname.includes('/admin') || window.location.hash.includes('admin')) {
@@ -240,6 +248,7 @@ export default function App() {
         movies={movies}
         onAddMovie={handleAddMovie}
         onUpdateMovie={handleUpdateMovie}
+        onDeleteMovie={handleDeleteMovie}
         onClose={() => {
           setIsAdminPage(false);
           window.history.pushState({}, '', '/');
@@ -274,7 +283,6 @@ export default function App() {
         <>
           <Header user={user} isDarkMode={isDarkMode} />
 
-          {/* Seriallar va Qo'llab-quvvatlash ko'k bloki */}
           <QuickActions
             language={language}
             onSeriesClick={() => {
@@ -283,7 +291,6 @@ export default function App() {
           />
 
           <main className="px-3.5 pt-2 max-w-md mx-auto">
-            {/* Sarlavha va Eslatma tugmasi */}
             <div className="flex items-center justify-between mb-3 px-1">
               <h2 className="text-sm font-bold text-gray-400">
                 {filterCategory === 'serial' ? 'Seriallar' : 'Barcha Kinolar'}
@@ -299,7 +306,6 @@ export default function App() {
                   </button>
                 )}
 
-                {/* Eslatma tugmasi */}
                 <button
                   onClick={() => setIsNoticeOpen(true)}
                   className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-all duration-200 shadow-md shadow-blue-600/30 active:scale-95"
@@ -327,12 +333,10 @@ export default function App() {
         </>
       )}
 
-      {/* Eslatma oynasi (Modal) */}
+      {/* Eslatma Modal */}
       {isNoticeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
           <div className="relative w-full max-w-sm bg-[#161d31] border border-slate-700/60 rounded-2xl shadow-2xl p-5 text-white overflow-hidden">
-            
-            {/* Yopish tugmasi (X) */}
             <button
               onClick={() => setIsNoticeOpen(false)}
               className="absolute top-3.5 right-3.5 text-slate-400 hover:text-white bg-slate-800/80 p-1.5 rounded-full transition-colors"
@@ -340,7 +344,6 @@ export default function App() {
               <X className="w-4 h-4" />
             </button>
 
-            {/* Sarlavha va belgi */}
             <div className="flex items-center gap-2.5 mb-3">
               <div className="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl">
                 <HeartHandshake className="w-6 h-6" />
@@ -348,17 +351,15 @@ export default function App() {
               <h3 className="text-base font-bold text-white">Foydalanuvchilar diqqatiga!</h3>
             </div>
 
-            {/* Matn qismi */}
             <div className="space-y-3 text-slate-300 text-xs leading-relaxed">
               <p>
-                Assalomu Alekum aziz foydalanuvchilar botimzdagi bazi kinolar sifati pastroq va 480 720 p bolishi mumkin biz 0 mabla'g bilan  bu loyihani yartganimiz uchun bizda finans tomonlama yetishmovchiliklar bor buning uchun uzur soraymiz 🤝
+                Assalomu Alekum aziz foydalanuvchilar botimzdagi bazi kinolar sifati pastroq va 480 720 p bolishi mumkin biz 0 mabla'g bilan bu loyihani yartganimiz uchun bizda finans tomonlama yetishmovchiliklar bor buning uchun uzur soraymiz 🤝
               </p>
               <p>
                 va agar biz kuchayib toliq yuqori sifatda kinolar yuklashimzni hohlasangiz quyidagi bank hisob raqamiga donat qilishingiz mumkin (ixtiyotiy) ☺️
               </p>
             </div>
 
-            {/* Bank karta raqami */}
             <div className="mt-4 p-3 bg-slate-800/80 border border-slate-700/70 rounded-xl flex items-center gap-3">
               <CreditCard className="w-5 h-5 text-blue-400 shrink-0" />
               <div>
@@ -369,7 +370,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Tushunarli yopish tugmasi */}
             <div className="mt-4">
               <button
                 onClick={() => setIsNoticeOpen(false)}
@@ -378,12 +378,10 @@ export default function App() {
                 Tushunarli
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* Serial bosilganda uning barcha qismlarini chiqaruvchi Modal */}
       <SerialDetailModal
         serial={selectedSerialForModal}
         onClose={() => setSelectedSerialForModal(null)}
