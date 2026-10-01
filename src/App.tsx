@@ -12,13 +12,13 @@ import { fetchMoviesFromCloud, saveMoviesToCloud } from './components/services/a
 import type { NavTab, Language, TelegramUser, MovieItem } from './types';
 
 import rawMoviesData from './data/movies.json';
-import rawSerialsData from './data/serials.json';
 
 const generateRandomId = () => Math.floor(100000000 + Math.random() * 900000000);
 
 // JSON ichidan faqat kinolarni ajratib olish
 const parseMoviesFromJson = (): MovieItem[] => {
   const moviesList: MovieItem[] = [];
+  const serialEpisodes = new Map<string, { item: Record<string, unknown>; code: number }[]>();
   const seenMovieKeys = new Set<string>();
 
   Object.entries(rawMoviesData).forEach(([codeStr, item], index) => {
@@ -44,7 +44,13 @@ const parseMoviesFromJson = (): MovieItem[] => {
     const genre = genreMatch ? genreMatch[1].split('\n')[0].replace(/\\n/g, '').trim() : '';
     const isSerial = Boolean(movie.is_serial || movie.serial_name || movie.episode_number || genre.toLowerCase().includes('serial') || caption.toLowerCase().includes('qism'));
 
-    if (isSerial) return;
+    if (isSerial) {
+      const serialName = movie.serial_name || rawTitle;
+      const episodes = serialEpisodes.get(serialName) || [];
+      episodes.push({ item: movie as Record<string, unknown>, code });
+      serialEpisodes.set(serialName, episodes);
+      return;
+    }
 
     const movieKey = `movie_${code}`;
     if (seenMovieKeys.has(movieKey)) return;
@@ -63,25 +69,46 @@ const parseMoviesFromJson = (): MovieItem[] => {
     });
   });
 
+  serialEpisodes.forEach((episodeRecords, serialName) => {
+    const sortedRecords = episodeRecords.sort((a, b) => {
+      const episodeA = Number((a.item as { episode_number?: number }).episode_number || a.code);
+      const episodeB = Number((b.item as { episode_number?: number }).episode_number || b.code);
+      return episodeA - episodeB;
+    });
+    const first = sortedRecords[0];
+    const firstMovie = first.item as {
+      posterUrl?: string;
+      caption?: string;
+    };
+
+    moviesList.push({
+      id: `serial-${serialName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      title: serialName,
+      category: 'Serial',
+      posterUrl: firstMovie.posterUrl || '',
+      rating: '10.0',
+      createdAt: Date.now(),
+      episodes: sortedRecords.map(({ item, code }) => {
+        const episode = item as {
+          episode_number?: number;
+          caption?: string;
+          file_id?: string;
+        };
+        const episodeNumber = Number(episode.episode_number || 0);
+        return {
+          id: `${serialName}-${episodeNumber || code}`,
+          episodeNumber,
+          title: `${episodeNumber}-Qism`,
+          code,
+          file_id: episode.file_id,
+          videoUrl: `https://t.me/EtvCinema_bot?start=${code}`,
+        };
+      }),
+    });
+  });
+
   return moviesList.sort((a, b) => (Number(a.code ?? 0) > Number(b.code ?? 0) ? 1 : -1));
 };
-
-const parseSerialsFromJson = (): MovieItem[] =>
-  Object.entries(rawSerialsData).map(([id, serial]) => ({
-    id: `curated_serial_${id}`,
-    title: serial.title,
-    category: 'Serial',
-    posterUrl: serial.posterUrl,
-    rating: serial.rating,
-    episodes: serial.episodes.map((episode) => ({
-      ...episode,
-      id: `${id}_${episode.episodeNumber}`,
-      title: episode.title || `${episode.episodeNumber}-Qism`,
-      videoUrl: `https://t.me/EtvCinema_bot?start=${episode.code}`,
-    })),
-  }));
-
-const curatedSerials = parseSerialsFromJson();
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
@@ -96,15 +123,29 @@ export default function App() {
 
   const [movies, setMovies] = useState<MovieItem[]>(() => {
     const saved = localStorage.getItem('app_movies_list');
-    const storedMovies = saved ? JSON.parse(saved) : parseMoviesFromJson();
-    return storedMovies.filter((movie: MovieItem) => movie.category !== 'Serial');
+    return saved ? JSON.parse(saved) : parseMoviesFromJson();
   });
 
   // Bulutli bazadan sinxronizatsiya
   useEffect(() => {
     fetchMoviesFromCloud().then((cloudMovies) => {
       if (cloudMovies && cloudMovies.length > 0) {
-        setMovies(cloudMovies.filter((movie) => movie.category !== 'Serial'));
+        const seededSerials = parseMoviesFromJson().filter((movie) => movie.category === 'Serial');
+        const mergedMovies = [...cloudMovies];
+        seededSerials.forEach((seedSerial) => {
+          const existing = mergedMovies.find((movie) => movie.title === seedSerial.title && movie.category === 'Serial');
+          if (!existing) {
+            mergedMovies.push(seedSerial);
+            return;
+          }
+          const existingCodes = new Set((existing.episodes || []).map((episode) => episode.code));
+          const missingEpisodes = (seedSerial.episodes || []).filter((episode) => !existingCodes.has(episode.code));
+          if (missingEpisodes.length > 0) {
+            existing.episodes = [...(existing.episodes || []), ...missingEpisodes].sort((a, b) => a.episodeNumber - b.episodeNumber);
+          }
+        });
+        setMovies(mergedMovies);
+        saveMoviesToCloud(mergedMovies);
       }
     });
   }, []);
@@ -185,7 +226,7 @@ export default function App() {
   };
 
   const displayedMovies = useMemo(() => {
-    if (filterCategory === 'serial') return curatedSerials;
+    if (filterCategory === 'serial') return movies.filter((movie) => movie.category === 'Serial');
     return movies.filter((movie) => movie.category === 'Kino');
   }, [movies, filterCategory]);
 

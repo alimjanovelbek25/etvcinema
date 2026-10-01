@@ -25,7 +25,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Form State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<'Kino' | 'Multfilm' | 'Anime'>('Kino');
+  const [category, setCategory] = useState<'Kino' | 'Serial' | 'Multfilm' | 'Anime'>('Kino');
   const [posterUrl, setPosterUrl] = useState('');
   const [rating, setRating] = useState('8.5');
   const [fileId, setFileId] = useState('');
@@ -235,6 +235,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full bg-[#0d1222] border border-slate-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
                 >
                   <option value="Kino">Kino</option>
+                  <option value="Serial">Serial</option>
                   <option value="Multfilm">Multfilm</option>
                   <option value="Anime">Anime</option>
                 </select>
@@ -280,6 +281,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <Plus className="w-4 h-4" /> Yaratish va Saqlash
             </button>
           </form>
+
+          {serialsList.length > 0 && (
+            <div className="mt-6 border-t border-slate-800 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-bold text-gray-400">Qo'shilgan seriallar</h2>
+                <span className="text-[10px] text-blue-400">{serialsList.length} ta</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {serialsList.map((serial) => (
+                  <button
+                    key={serial.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSerialId(serial.id);
+                      setEpisodeNum((serial.episodes?.length || 0) + 1);
+                      setActiveTab('manage_episodes');
+                    }}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-[#0d1222] p-2.5 text-left transition hover:border-blue-500/60"
+                  >
+                    <img src={serial.posterUrl} alt="" className="size-11 rounded-xl object-cover" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-bold text-white">{serial.title}</span>
+                      <span className="text-[10px] text-gray-500">{serial.episodes?.length || 0} ta qism</span>
+                    </span>
+                    <Layers className="size-4 text-blue-400" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
