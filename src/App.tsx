@@ -12,7 +12,6 @@ import { fetchMoviesFromCloud, saveMoviesToCloud } from './components/services/a
 import type { NavTab, Language, TelegramUser, MovieItem } from './types';
 
 import rawMoviesData from './data/movies.json';
-import rawSerialsData from './data/serials.json';
 
 const generateRandomId = () => Math.floor(100000000 + Math.random() * 900000000);
 
@@ -66,23 +65,6 @@ const parseMoviesFromJson = (): MovieItem[] => {
   return moviesList.sort((a, b) => (Number(a.code ?? 0) > Number(b.code ?? 0) ? 1 : -1));
 };
 
-const parseSerialsFromJson = (): MovieItem[] =>
-  Object.entries(rawSerialsData).map(([id, serial]) => ({
-    id: `curated_serial_${id}`,
-    title: serial.title,
-    category: 'Serial',
-    posterUrl: serial.posterUrl,
-    rating: serial.rating,
-    episodes: serial.episodes.map((episode) => ({
-      ...episode,
-      id: `${id}_${episode.episodeNumber}`,
-      title: episode.title || `${episode.episodeNumber}-Qism`,
-      videoUrl: `https://t.me/EtvCinema_bot?start=${episode.code}`,
-    })),
-  }));
-
-const curatedSerials = parseSerialsFromJson();
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [isAdminPage, setIsAdminPage] = useState(false);
@@ -96,15 +78,14 @@ export default function App() {
 
   const [movies, setMovies] = useState<MovieItem[]>(() => {
     const saved = localStorage.getItem('app_movies_list');
-    const storedMovies = saved ? JSON.parse(saved) : parseMoviesFromJson();
-    return storedMovies.filter((movie: MovieItem) => movie.category !== 'Serial');
+    return saved ? JSON.parse(saved) : parseMoviesFromJson();
   });
 
   // Bulutli bazadan sinxronizatsiya
   useEffect(() => {
     fetchMoviesFromCloud().then((cloudMovies) => {
       if (cloudMovies && cloudMovies.length > 0) {
-        setMovies(cloudMovies.filter((movie) => movie.category !== 'Serial'));
+        setMovies(cloudMovies);
       }
     });
   }, []);
@@ -185,7 +166,7 @@ export default function App() {
   };
 
   const displayedMovies = useMemo(() => {
-    if (filterCategory === 'serial') return curatedSerials;
+    if (filterCategory === 'serial') return movies.filter((movie) => movie.category === 'Serial');
     return movies.filter((movie) => movie.category === 'Kino');
   }, [movies, filterCategory]);
 

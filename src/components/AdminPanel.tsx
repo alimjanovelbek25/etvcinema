@@ -25,7 +25,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Form State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<'Kino' | 'Multfilm' | 'Anime'>('Kino');
+  const [category, setCategory] = useState<'Kino' | 'Serial' | 'Multfilm' | 'Anime'>('Kino');
   const [posterUrl, setPosterUrl] = useState('');
   const [rating, setRating] = useState('8.5');
   const [fileId, setFileId] = useState('');
@@ -235,6 +235,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full bg-[#0d1222] border border-slate-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
                 >
                   <option value="Kino">Kino</option>
+                  <option value="Serial">Serial</option>
                   <option value="Multfilm">Multfilm</option>
                   <option value="Anime">Anime</option>
                 </select>
