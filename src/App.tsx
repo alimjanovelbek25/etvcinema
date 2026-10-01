@@ -9,21 +9,17 @@ import { AdminPanel } from './components/AdminPanel';
 import { QuickActions } from './components/QuickActions';
 import { SerialDetailModal } from './components/SerialDetailModal';
 import { fetchMoviesFromCloud, saveMoviesToCloud } from './components/services/api';
-import type { NavTab, Language, TelegramUser, MovieItem, EpisodeItem } from './types';
+import type { NavTab, Language, TelegramUser, MovieItem } from './types';
 
 import rawMoviesData from './data/movies.json';
+import rawSerialsData from './data/serials.json';
 
 const generateRandomId = () => Math.floor(100000000 + Math.random() * 900000000);
 
-const normalizeSerialKey = (value: string): string =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
-
-// JSON ichidan Kinolar va Seriallarni ajratib guruhlash
+// JSON ichidan faqat kinolarni ajratib olish
 const parseMoviesFromJson = (): MovieItem[] => {
   const moviesList: MovieItem[] = [];
-  const serialsGroupMap: { [key: string]: MovieItem } = {};
   const seenMovieKeys = new Set<string>();
-  const seenEpisodeKeys = new Set<string>();
 
   Object.entries(rawMoviesData).forEach(([codeStr, item], index) => {
     const movie = item as {
@@ -48,57 +44,7 @@ const parseMoviesFromJson = (): MovieItem[] => {
     const genre = genreMatch ? genreMatch[1].split('\n')[0].replace(/\\n/g, '').trim() : '';
     const isSerial = Boolean(movie.is_serial || movie.serial_name || movie.episode_number || genre.toLowerCase().includes('serial') || caption.toLowerCase().includes('qism'));
 
-    if (isSerial) {
-      const serialName = (movie.serial_name || rawTitle)
-        .replace(/\s*\(?\d+[-_ ]*qism\)?/i, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      const serialKey = normalizeSerialKey(serialName || `serial_${code}`);
-      const episodeKey = `${serialKey}-${code}`;
-
-      if (seenEpisodeKeys.has(episodeKey)) return;
-      seenEpisodeKeys.add(episodeKey);
-
-      let epNum = movie.episode_number;
-      if (!epNum) {
-        const epMatch = caption.match(/(\d+)[-_ ]*qism/i) || rawTitle.match(/(\d+)[-_ ]*qism/i);
-        epNum = epMatch ? parseInt(epMatch[1], 10) : 1;
-      }
-
-      const episodeObj: EpisodeItem = {
-        id: `ep_${code}`,
-        episodeNumber: epNum,
-        title: `${epNum}-Qism`,
-        code: code,
-        file_id: movie.file_id || '',
-        videoUrl: `https://t.me/EtvCinema_bot?start=${code}`,
-      };
-
-      const existingSerial = serialsGroupMap[serialKey];
-      if (existingSerial) {
-        if (!existingSerial.episodes) {
-          existingSerial.episodes = [];
-        }
-        const exists = existingSerial.episodes.some((e) => e.code === code);
-        if (!exists) {
-          existingSerial.episodes.push(episodeObj);
-          existingSerial.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
-        }
-        return;
-      }
-
-      const newSerial: MovieItem = {
-        id: `serial_${serialKey}`,
-        title: serialName,
-        category: 'Serial',
-        rating: rating,
-        posterUrl: movie.posterUrl || '',
-        episodes: [episodeObj],
-      };
-      serialsGroupMap[serialKey] = newSerial;
-      moviesList.push(newSerial);
-      return;
-    }
+    if (isSerial) return;
 
     const movieKey = `movie_${code}`;
     if (seenMovieKeys.has(movieKey)) return;
@@ -120,6 +66,23 @@ const parseMoviesFromJson = (): MovieItem[] => {
   return moviesList.sort((a, b) => (Number(a.code ?? 0) > Number(b.code ?? 0) ? 1 : -1));
 };
 
+const parseSerialsFromJson = (): MovieItem[] =>
+  Object.entries(rawSerialsData).map(([id, serial]) => ({
+    id: `curated_serial_${id}`,
+    title: serial.title,
+    category: 'Serial',
+    posterUrl: serial.posterUrl,
+    rating: serial.rating,
+    episodes: serial.episodes.map((episode) => ({
+      ...episode,
+      id: `${id}_${episode.episodeNumber}`,
+      title: episode.title || `${episode.episodeNumber}-Qism`,
+      videoUrl: `https://t.me/EtvCinema_bot?start=${episode.code}`,
+    })),
+  }));
+
+const curatedSerials = parseSerialsFromJson();
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [isAdminPage, setIsAdminPage] = useState(false);
@@ -133,14 +96,15 @@ export default function App() {
 
   const [movies, setMovies] = useState<MovieItem[]>(() => {
     const saved = localStorage.getItem('app_movies_list');
-    return saved ? JSON.parse(saved) : parseMoviesFromJson();
+    const storedMovies = saved ? JSON.parse(saved) : parseMoviesFromJson();
+    return storedMovies.filter((movie: MovieItem) => movie.category !== 'Serial');
   });
 
   // Bulutli bazadan sinxronizatsiya
   useEffect(() => {
     fetchMoviesFromCloud().then((cloudMovies) => {
       if (cloudMovies && cloudMovies.length > 0) {
-        setMovies(cloudMovies);
+        setMovies(cloudMovies.filter((movie) => movie.category !== 'Serial'));
       }
     });
   }, []);
@@ -221,12 +185,8 @@ export default function App() {
   };
 
   const displayedMovies = useMemo(() => {
-    return movies.filter((movie) => {
-      if (filterCategory === 'serial') {
-        return movie.category === 'Serial';
-      }
-      return movie.category === 'Kino';
-    });
+    if (filterCategory === 'serial') return curatedSerials;
+    return movies.filter((movie) => movie.category === 'Kino');
   }, [movies, filterCategory]);
 
   const handleMovieCardClick = useCallback((movie: MovieItem) => {
