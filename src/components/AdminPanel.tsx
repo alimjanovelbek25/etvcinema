@@ -25,7 +25,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Form State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<'Kino' | 'Serial' | 'Multfilm' | 'Anime'>('Serial');
+  const [category, setCategory] = useState<'Kino' | 'Multfilm' | 'Anime'>('Kino');
   const [posterUrl, setPosterUrl] = useState('');
   const [rating, setRating] = useState('8.5');
   const [fileId, setFileId] = useState('');
@@ -70,10 +70,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       category: category as MovieItem['category'],
       posterUrl: posterUrl.trim(),
       rating: rating || '8.0',
-      code: category !== 'Serial' ? nextCode : undefined,
-      file_id: category !== 'Serial' ? fileId.trim() : undefined,
-      videoUrl: category !== 'Serial' ? `https://t.me/EtvCinema_bot?start=${nextCode}` : undefined,
-      episodes: category === 'Serial' ? [] : undefined,
+      code: nextCode,
+      file_id: fileId.trim(),
+      videoUrl: `https://t.me/EtvCinema_bot?start=${nextCode}`,
       createdAt: Date.now(),
     };
 
@@ -83,10 +82,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTitle('');
     setPosterUrl('');
     setFileId('');
-    if (category === 'Serial') {
-      setSelectedSerialId(newMovie.id);
-      setActiveTab('manage_episodes');
-    }
+
   };
 
   const handleAddEpisode = (e: React.FormEvent) => {
@@ -238,7 +234,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   onChange={(e: any) => setCategory(e.target.value)}
                   className="w-full bg-[#0d1222] border border-slate-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
                 >
-                  <option value="Serial">Serial</option>
                   <option value="Kino">Kino</option>
                   <option value="Multfilm">Multfilm</option>
                   <option value="Anime">Anime</option>
@@ -270,18 +265,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               />
             </div>
 
-            {category !== 'Serial' && (
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Telegram Video File ID *</label>
-                <input
-                  type="text"
-                  placeholder="BAACAgIAAxkBAAE..."
-                  value={fileId}
-                  onChange={(e) => setFileId(e.target.value)}
-                  className="w-full bg-[#0d1222] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none"
-                />
-              </div>
-            )}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Telegram Video File ID *</label>
+              <input
+                type="text"
+                placeholder="BAACAgIAAxkBAAE..."
+                value={fileId}
+                onChange={(e) => setFileId(e.target.value)}
+                className="w-full bg-[#0d1222] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none"
+              />
+            </div>
 
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 font-bold py-3 rounded-xl text-sm transition mt-2 flex items-center justify-center gap-2">
               <Plus className="w-4 h-4" /> Yaratish va Saqlash
