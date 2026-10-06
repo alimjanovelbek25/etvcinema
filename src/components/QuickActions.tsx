@@ -1,22 +1,26 @@
 import React from 'react';
-import { Tv, MessageCircle } from 'lucide-react';
+import { Tv, Smile, MessageCircle } from 'lucide-react';
 
 interface QuickActionsProps {
   onSeriesClick: () => void;
+  onCartoonsClick: () => void;
   language?: 'uz' | 'ru';
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
   onSeriesClick,
+  onCartoonsClick,
   language = 'uz',
 }) => {
   const t = {
     uz: {
       series: 'Seriallar',
+      cartoons: 'Multfilmlar',
       support: "Qo'llab-quvvatlash",
     },
     ru: {
       series: 'Сериалы',
+      cartoons: 'Мультфильмы',
       support: 'Поддержка',
     },
   }[language];
@@ -34,26 +38,35 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
 
   return (
     <div className="px-3.5 mb-2 max-w-md mx-auto">
-      {/* 2 va 3-rasmdagi kabi ko'k, burchaklari yumaloq va kalta/ixcham blok */}
       <div className="bg-blue-600 rounded-3xl p-2.5 shadow-lg shadow-blue-600/30 border border-blue-500/40">
-        <div className="grid grid-cols-2 gap-2">
-          {/* Seriallar tugmasi */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {/* Seriallar */}
           <button
             onClick={onSeriesClick}
             type="button"
-            className="bg-blue-500/40 hover:bg-blue-500/60 active:scale-95 transition-all duration-200 py-3 px-3 rounded-2xl flex items-center justify-center gap-2 text-white font-bold text-xs border border-white/10 shadow-sm cursor-pointer"
+            className="bg-blue-500/40 hover:bg-blue-500/60 active:scale-95 transition-all duration-200 py-2.5 px-2 rounded-2xl flex items-center justify-center gap-1.5 text-white font-bold text-[11px] border border-white/10 shadow-sm cursor-pointer"
           >
-            <Tv className="w-4 h-4 text-white" />
+            <Tv className="w-4 h-4 text-white shrink-0" />
             <span className="truncate">{t.series}</span>
           </button>
 
-          {/* Qo'llab-quvvatlash tugmasi */}
+          {/* Multfilmlar */}
+          <button
+            onClick={onCartoonsClick}
+            type="button"
+            className="bg-blue-500/40 hover:bg-blue-500/60 active:scale-95 transition-all duration-200 py-2.5 px-2 rounded-2xl flex items-center justify-center gap-1.5 text-white font-bold text-[11px] border border-white/10 shadow-sm cursor-pointer"
+          >
+            <Smile className="w-4 h-4 text-white shrink-0" />
+            <span className="truncate">{t.cartoons}</span>
+          </button>
+
+          {/* Qo'llab-quvvatlash */}
           <button
             onClick={handleSupportClick}
             type="button"
-            className="bg-blue-500/40 hover:bg-blue-500/60 active:scale-95 transition-all duration-200 py-3 px-3 rounded-2xl flex items-center justify-center gap-2 text-white font-bold text-xs border border-white/10 shadow-sm cursor-pointer"
+            className="bg-blue-500/40 hover:bg-blue-500/60 active:scale-95 transition-all duration-200 py-2.5 px-2 rounded-2xl flex items-center justify-center gap-1.5 text-white font-bold text-[11px] border border-white/10 shadow-sm cursor-pointer"
           >
-            <MessageCircle className="w-4 h-4 text-white" />
+            <MessageCircle className="w-4 h-4 text-white shrink-0" />
             <span className="truncate">{t.support}</span>
           </button>
         </div>

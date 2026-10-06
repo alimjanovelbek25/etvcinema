@@ -15,7 +15,6 @@ import rawMoviesData from './data/movies.json';
 
 const generateRandomId = () => Math.floor(100000000 + Math.random() * 900000000);
 
-// JSON ichidan faqat kinolarni ajratib olish
 const parseMoviesFromJson = (): MovieItem[] => {
   const moviesList: MovieItem[] = [];
   const serialEpisodes = new Map<string, { item: Record<string, unknown>; code: number }[]>();
@@ -29,6 +28,7 @@ const parseMoviesFromJson = (): MovieItem[] => {
       is_serial?: boolean;
       serial_name?: string;
       episode_number?: number;
+      category?: string;
     };
 
     const code = Number(codeStr) || (1000 + index);
@@ -42,6 +42,8 @@ const parseMoviesFromJson = (): MovieItem[] => {
 
     const genreMatch = caption.match(/\*\*Janr:\*\*\s*(.*)/);
     const genre = genreMatch ? genreMatch[1].split('\n')[0].replace(/\\n/g, '').trim() : '';
+    
+    const isCartoon = movie.category === 'Multfilm' || genre.toLowerCase().includes('multfilm') || caption.toLowerCase().includes('multfilm');
     const isSerial = Boolean(movie.is_serial || movie.serial_name || movie.episode_number || genre.toLowerCase().includes('serial') || caption.toLowerCase().includes('qism'));
 
     if (isSerial) {
@@ -59,7 +61,7 @@ const parseMoviesFromJson = (): MovieItem[] => {
     moviesList.push({
       id: String(code),
       title: rawTitle,
-      category: 'Kino',
+      category: isCartoon ? 'Multfilm' : 'Kino',
       rating: rating,
       posterUrl: movie.posterUrl || '',
       file_id: movie.file_id,
@@ -117,7 +119,8 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [enhancedAnimations, setEnhancedAnimations] = useState(true);
 
-  const [filterCategory, setFilterCategory] = useState<'all' | 'serial'>('all');
+  // Kategoriya filtri: 'all' | 'serial' | 'cartoon'
+  const [filterCategory, setFilterCategory] = useState<'all' | 'serial' | 'cartoon'>('all');
   const [selectedSerialForModal, setSelectedSerialForModal] = useState<MovieItem | null>(null);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
 
@@ -126,22 +129,26 @@ export default function App() {
     return saved ? JSON.parse(saved) : parseMoviesFromJson();
   });
 
-  // Bulutli bazadan sinxronizatsiya
   useEffect(() => {
     fetchMoviesFromCloud().then((cloudMovies) => {
       if (cloudMovies && cloudMovies.length > 0) {
         const seededSerials = parseMoviesFromJson().filter((movie) => movie.category === 'Serial');
-        const mergedMovies = [...cloudMovies];
+        const mergedMovies = cloudMovies.map((m) => ({ ...m }));
+
         seededSerials.forEach((seedSerial) => {
-          const existing = mergedMovies.find((movie) => movie.title === seedSerial.title && movie.category === 'Serial');
-          if (!existing) {
+          const existingIndex = mergedMovies.findIndex((movie) => movie.title === seedSerial.title && movie.category === 'Serial');
+          if (existingIndex === -1) {
             mergedMovies.push(seedSerial);
-            return;
-          }
-          const existingCodes = new Set((existing.episodes || []).map((episode) => episode.code));
-          const missingEpisodes = (seedSerial.episodes || []).filter((episode) => !existingCodes.has(episode.code));
-          if (missingEpisodes.length > 0) {
-            existing.episodes = [...(existing.episodes || []), ...missingEpisodes].sort((a, b) => a.episodeNumber - b.episodeNumber);
+          } else {
+            const existing = mergedMovies[existingIndex];
+            const existingCodes = new Set((existing.episodes || []).map((episode) => episode.code));
+            const missingEpisodes = (seedSerial.episodes || []).filter((episode) => !existingCodes.has(episode.code));
+            if (missingEpisodes.length > 0) {
+              mergedMovies[existingIndex] = {
+                ...existing,
+                episodes: [...(existing.episodes || []), ...missingEpisodes].sort((a, b) => a.episodeNumber - b.episodeNumber),
+              };
+            }
           }
         });
         setMovies(mergedMovies);
@@ -150,7 +157,6 @@ export default function App() {
     });
   }, []);
 
-  // Kinolar va Seriallar ro'yxatini yangilash hamda bulutga saqlash
   const updateMoviesData = useCallback((newMovies: MovieItem[]) => {
     setMovies(newMovies);
     localStorage.setItem('app_movies_list', JSON.stringify(newMovies));
@@ -173,7 +179,6 @@ export default function App() {
     });
   }, [updateMoviesData]);
 
-  // Admin paneldan kino/serialni o'chirish funksiyasi
   const handleDeleteMovie = useCallback((movieId: string) => {
     setMovies((prev) => {
       const updated = prev.filter((m) => m.id !== movieId);
@@ -195,7 +200,6 @@ export default function App() {
       : { id: generateRandomId(), first_name: 'Foydalanuvchi' };
   });
 
-  // URL /admin bo'lganda Admin panelni ochish
   useEffect(() => {
     const checkPath = () => {
       if (window.location.pathname.includes('/admin') || window.location.hash.includes('admin')) {
@@ -225,9 +229,11 @@ export default function App() {
     }
   };
 
+  // Tanlangan kategoriya bo'yicha to'g'ri filterlash
   const displayedMovies = useMemo(() => {
     if (filterCategory === 'serial') return movies.filter((movie) => movie.category === 'Serial');
-    return movies.filter((movie) => movie.category === 'Kino');
+    if (filterCategory === 'cartoon') return movies.filter((movie) => movie.category === 'Multfilm');
+    return movies; // Barcha ma'lumotlarni ko'rsatadi
   }, [movies, filterCategory]);
 
   const handleMovieCardClick = useCallback((movie: MovieItem) => {
@@ -289,16 +295,23 @@ export default function App() {
             onSeriesClick={() => {
               setFilterCategory(filterCategory === 'serial' ? 'all' : 'serial');
             }}
+            onCartoonsClick={() => {
+              setFilterCategory(filterCategory === 'cartoon' ? 'all' : 'cartoon');
+            }}
           />
 
           <main className="px-3.5 pt-2 max-w-md mx-auto">
             <div className="flex items-center justify-between mb-3 px-1">
               <h2 className="text-sm font-bold text-gray-400">
-                {filterCategory === 'serial' ? 'Seriallar' : 'Barcha Kinolar'}
+                {filterCategory === 'serial'
+                  ? 'Seriallar'
+                  : filterCategory === 'cartoon'
+                  ? 'Multfilmlar'
+                  : 'Barcha Kinolar'}
               </h2>
 
               <div className="flex items-center gap-2">
-                {filterCategory === 'serial' && (
+                {filterCategory !== 'all' && (
                   <button
                     onClick={() => setFilterCategory('all')}
                     className="text-xs text-blue-400 font-semibold hover:underline mr-1"
@@ -322,7 +335,7 @@ export default function App() {
                 Hozircha ma'lumotlar mavjud emas.
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {displayedMovies.map((movie) => (
                   <div key={movie.id} onClick={() => handleMovieCardClick(movie)}>
                     <MovieCard item={movie} isDarkMode={isDarkMode} />
@@ -354,10 +367,10 @@ export default function App() {
 
             <div className="space-y-3 text-slate-300 text-xs leading-relaxed">
               <p>
-                Assalomu Alekum aziz foydalanuvchilar botimzdagi bazi kinolar sifati pastroq va 480 720 p bolishi mumkin biz 0 mabla'g bilan bu loyihani yartganimiz uchun bizda finans tomonlama yetishmovchiliklar bor buning uchun uzur soraymiz 🤝
+                Assalomu Aleykum aziz foydalanuvchilar! Botimizdagi ba'zi kinolar sifati 480p yoki 720p bo'lishi mumkin. Loyihani o'z imkoniyatlarimiz bilan yaratganimiz sababli moliyaviy qiyinchiliklar bor, buning uchun uzr so'raymiz 🤝
               </p>
               <p>
-                va agar biz kuchayib toliq yuqori sifatda kinolar yuklashimzni hohlasangiz quyidagi bank hisob raqamiga donat qilishingiz mumkin (ixtiyotiy) ☺️
+                Agar loyihamiz rivojlanib, kinolarni yuqori sifatda yuklashimizni xohlasangiz, ixtiyoriy ravishda quyidagi bank kartasiga qo'llab-quvvatlash uchun donat qilishingiz mumkin ☺️
               </p>
             </div>
 

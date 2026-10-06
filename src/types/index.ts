@@ -28,10 +28,7 @@ export interface EpisodeItem {
   fileSize?: string;
   videoUrl: string;
 }
-// React kodingizdagi tuzilma:
-{
-  
-}
+
 export interface MovieItem {
   id: string;
   title: string;
