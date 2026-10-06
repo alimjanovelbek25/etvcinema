@@ -43,8 +43,11 @@ const parseMoviesFromJson = (): MovieItem[] => {
     const genreMatch = caption.match(/\*\*Janr:\*\*\s*(.*)/);
     const genre = genreMatch ? genreMatch[1].split('\n')[0].replace(/\\n/g, '').trim() : '';
     
-    const isCartoon = movie.category === 'Multfilm' || genre.toLowerCase().includes('multfilm') || caption.toLowerCase().includes('multfilm');
-    const isSerial = Boolean(movie.is_serial || movie.serial_name || movie.episode_number || genre.toLowerCase().includes('serial') || caption.toLowerCase().includes('qism'));
+    // Multfilm ekanligini aniqroq ajratish
+    const isCartoon = movie.category === 'Multfilm' || genre.toLowerCase().includes('multfilm');
+
+    // Oddiy kino tavsifidagi chalkash so'zlar sabab serial bo'lib ketmasligi uchun aniq shart
+    const isSerial = movie.category === 'Serial' || Boolean(movie.is_serial || movie.serial_name || (movie.episode_number && movie.episode_number > 0));
 
     if (isSerial) {
       const serialName = movie.serial_name || rawTitle;
@@ -233,7 +236,8 @@ export default function App() {
   const displayedMovies = useMemo(() => {
     if (filterCategory === 'serial') return movies.filter((movie) => movie.category === 'Serial');
     if (filterCategory === 'cartoon') return movies.filter((movie) => movie.category === 'Multfilm');
-    return movies; // Barcha ma'lumotlarni ko'rsatadi
+    // 'all' rejimida faqat Kino kategoriyasidagi kartochkalar chiqadi
+    return movies.filter((movie) => movie.category === 'Kino');
   }, [movies, filterCategory]);
 
   const handleMovieCardClick = useCallback((movie: MovieItem) => {
